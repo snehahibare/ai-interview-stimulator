@@ -1,0 +1,140 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Interview Simulator</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Segoe UI", sans-serif; background: #0f0f1a; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .container { width: 100%; max-width: 700px; padding: 20px; }
+  h1 { text-align: center; font-size: 2rem; margin-bottom: 10px; color: #a78bfa; }
+  p.subtitle { text-align: center; color: #888; margin-bottom: 30px; }
+  .card { background: #1a1a2e; border-radius: 16px; padding: 30px; margin-bottom: 20px; }
+  select, textarea { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #333; background: #0f0f1a; color: #fff; font-size: 1rem; margin-bottom: 15px; }
+  textarea { height: 120px; resize: none; }
+  button { width: 100%; padding: 14px; border-radius: 10px; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; transition: 0.3s; margin-bottom: 10px; }
+  .btn-start { background: #7c3aed; color: white; }
+  .btn-start:hover { background: #6d28d9; }
+  .btn-ai { background: #0891b2; color: white; }
+  .btn-ai:hover { background: #0e7490; }
+  .btn-submit { background: #059669; color: white; }
+  .btn-submit:hover { background: #047857; }
+  .btn-next { background: #d97706; color: white; }
+  .btn-next:hover { background: #b45309; }
+  .question-box { background: #0f0f1a; border-left: 4px solid #a78bfa; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 1.1rem; }
+  .feedback-box { background: #0f0f1a; border-radius: 10px; padding: 20px; }
+  .score { font-size: 2.5rem; font-weight: bold; color: #a78bfa; text-align: center; margin-bottom: 15px; }
+  .feedback-item { margin-bottom: 12px; }
+  .feedback-item span { font-weight: bold; color: #a78bfa; }
+  .hidden { display: none; }
+  .mode-label { text-align: center; color: #0891b2; font-size: 0.9rem; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>AI Interview Simulator</h1>
+  <p class="subtitle">Practice interviews with AI feedback</p>
+
+  <div class="card" id="setup">
+    <h2 style="margin-bottom:15px">Select Role</h2>
+    <select id="roleSelect"></select>
+    <button class="btn-start" onclick="startInterview('fixed')">Start with Fixed Questions</button>
+    <button class="btn-ai" onclick="startInterview('ai')">Start with AI Generated Questions</button>
+  </div>
+
+  <div class="card hidden" id="interview">
+    <p class="mode-label" id="modeLabel"></p>
+    <p style="color:#888; margin-bottom:10px" id="progress">Question 1 of 5</p>
+    <div class="question-box" id="questionText"></div>
+    <textarea id="answerBox" placeholder="Type your answer here..."></textarea>
+    <button class="btn-submit" onclick="submitAnswer()">Submit Answer</button>
+  </div>
+
+  <div class="card hidden" id="feedbackSection">
+    <h2 style="margin-bottom:15px">Feedback</h2>
+    <div class="feedback-box">
+      <div class="score" id="scoreText"></div>
+      <div class="feedback-item"><span>Strengths:</span> <span id="strengths"></span></div>
+      <div class="feedback-item"><span>Weaknesses:</span> <span id="weaknesses"></span></div>
+      <div class="feedback-item"><span>Ideal Answer:</span> <span id="idealAnswer"></span></div>
+      <div class="feedback-item"><span>Follow-up:</span> <span id="followUp"></span></div>
+    </div>
+    <button class="btn-next hidden" id="nextBtn" onclick="nextQuestion()">Next Question</button>
+  </div>
+</div>
+
+<script>
+  let questions = [];
+  let currentIndex = 0;
+  let role = "";
+
+  async function loadRoles() {
+    const res = await fetch("/roles");
+    const data = await res.json();
+    const select = document.getElementById("roleSelect");
+    data.roles.forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r; opt.textContent = r;
+      select.appendChild(opt);
+    });
+  }
+
+  async function startInterview(mode) {
+    role = document.getElementById("roleSelect").value;
+    const btn = mode === "ai" ? document.querySelectorAll("button")[1] : document.querySelectorAll("button")[0];
+    btn.textContent = "Loading...";
+    const endpoint = mode === "ai" ? "/ai-questions/" : "/questions/";
+    const res = await fetch(endpoint + encodeURIComponent(role));
+    const data = await res.json();
+    questions = data.questions;
+    currentIndex = 0;
+    btn.textContent = mode === "ai" ? "Start with AI Generated Questions" : "Start with Fixed Questions";
+    document.getElementById("setup").classList.add("hidden");
+    document.getElementById("interview").classList.remove("hidden");
+    document.getElementById("modeLabel").textContent = mode === "ai" ? "AI Generated Questions" : "Fixed Questions";
+    showQuestion();
+  }
+
+  function showQuestion() {
+    document.getElementById("feedbackSection").classList.add("hidden");
+    document.getElementById("interview").classList.remove("hidden");
+    document.getElementById("nextBtn").classList.add("hidden");
+    document.getElementById("progress").textContent = "Question " + (currentIndex+1) + " of " + questions.length;
+    document.getElementById("questionText").textContent = questions[currentIndex];
+    document.getElementById("answerBox").value = "";
+  }
+
+  async function submitAnswer() {
+    const answer = document.getElementById("answerBox").value.trim();
+    if (!answer) { alert("Please write an answer!"); return; }
+    document.querySelector(".btn-submit").textContent = "Analyzing...";
+    const res = await fetch("/feedback", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({role: role, question: questions[currentIndex], answer: answer})
+    });
+    const feedback = await res.json();
+    document.querySelector(".btn-submit").textContent = "Submit Answer";
+    document.getElementById("scoreText").textContent = feedback.score + " / 10";
+    document.getElementById("strengths").textContent = feedback.strengths;
+    document.getElementById("weaknesses").textContent = feedback.weaknesses;
+    document.getElementById("idealAnswer").textContent = feedback.ideal_answer;
+    document.getElementById("followUp").textContent = feedback.follow_up;
+    document.getElementById("feedbackSection").classList.remove("hidden");
+    document.getElementById("interview").classList.add("hidden");
+    if (currentIndex < questions.length - 1) {
+      currentIndex++;
+      document.getElementById("nextBtn").classList.remove("hidden");
+    } else {
+      document.getElementById("nextBtn").textContent = "Interview Complete!";
+      document.getElementById("nextBtn").classList.remove("hidden");
+    }
+  }
+
+  function nextQuestion() { showQuestion(); }
+
+  loadRoles();
+</script>
+</body>
+</html>
