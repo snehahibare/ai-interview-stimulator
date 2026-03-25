@@ -1,4 +1,4 @@
-# AI Interview Simulator
+AI Interview Simulator
 
 An AI-powered interview simulator that generates questions and provides real-time feedback using Groq API and FastAPI.
 
